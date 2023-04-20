@@ -127,7 +127,7 @@ void setup() {
 
 
 void loop() {
-  if((time(&now) % 10) == 0){
+  if((time(&now) % 1800) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
       Serial.println(time(&now));
   
