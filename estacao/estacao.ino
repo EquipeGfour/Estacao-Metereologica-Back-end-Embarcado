@@ -6,7 +6,7 @@
 
 
 // WiFi config
-const char* ssid = "Fatec WiFi";
+const char* ssid = "Fatec";
 const char* pwd = "";
 
 // Server config
@@ -29,6 +29,7 @@ struct tm timeinfo;
 
 float t = 20.0;
 float u = 50.0;
+float p = 10.0;
 
 TaskHandle_t tTask1;
 TaskHandle_t tTask2;
@@ -39,7 +40,7 @@ std::vector<String> medidas;
 String data;
 
 void connectWiFi(){
-  Serial.print("Conectando");
+  Serial.print("\nConectando");
   while(WiFi.status() != WL_CONNECTED){
     delay(500);
     Serial.print(".");
@@ -70,9 +71,12 @@ void cadastrarDados() {
   
   String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(t, 2) + ",\"unx\":" + String(time(&now)) + "}";
   String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(u, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(p, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  
   
   medidas.push_back(medidaTemp + ",");
   medidas.push_back(medidaUmi + ",");
+  medidas.push_back(medidaPluv + ",");
   
   String str_medidas = std::accumulate(medidas.begin(), medidas.end(), String("["));
   str_medidas.remove(str_medidas.length() - 1, 1);
@@ -115,6 +119,8 @@ void setup() {
   WiFi.begin(ssid, pwd);
   uid = WiFi.macAddress();
   uid.replace(":", "");
+  Serial.print("Uid: ");
+  Serial.print(uid);
   connectWiFi();
   configTime(gmtOffset, daylight, ntpServer);
   if(!getLocalTime(&timeinfo)){
@@ -127,7 +133,7 @@ void setup() {
 
 
 void loop() {
-  if((time(&now) % 1800) == 0){
+  if((time(&now) % 300) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
       Serial.println(time(&now));
   
