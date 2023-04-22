@@ -1,12 +1,12 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include "time.h";
 #include <vector>
 #include <numeric>
+#include "time.h";
 
 
 // WiFi config
-const char* ssid = "Fatec";
+const char* ssid = "Fatec WiFi";
 const char* pwd = "";
 
 // Server config
@@ -27,9 +27,9 @@ int httpReturn;
 time_t now;
 struct tm timeinfo;
 
-float t = 20.0;
-float u = 50.0;
-float p = 10.0;
+float temp = 20.0;
+float umi = 50.0;
+float pluv = 10.0;
 
 TaskHandle_t tTask1;
 TaskHandle_t tTask2;
@@ -53,8 +53,9 @@ void coletarDados(void *pvParameters){
   Serial.println("Iniciando coleta de dados...");
   while(true){
     xSemaphoreTake(mutex, portMAX_DELAY);
-    t += 0.24;
-    u += 0.51;
+    temp += 0.9;
+    umi += 0.11;
+    pluv+= 0.3;
     xSemaphoreGive(mutex);
     delay(10000);
   }
@@ -68,10 +69,11 @@ void cadastrarDados() {
   hpost.begin(wClient, url);
   hpost.addHeader("Content-Type", "application/json");
   hpost.addHeader("x-app-key", "kkk");
+
   
-  String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(t, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(u, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(p, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv, 2) + ",\"unx\":" + String(time(&now)) + "}";
   
   
   medidas.push_back(medidaTemp + ",");
