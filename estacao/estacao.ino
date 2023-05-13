@@ -7,8 +7,8 @@
 
 
 // WiFi config
-const char* ssid = "Fatec WiFi";
-const char* pwd = "";
+const char* ssid = "Fatec WiFi"; //ADICIONE NO LUGAR DE "Fatec WiFi" A SUA REDE
+const char* pwd = ""; // ADICIONE SUA SENHA
 
 // Server config
 const char* server = ""; //ADICIONE AQUI A URL DO BACK-END
@@ -79,11 +79,11 @@ void cadastrarDados() {
   umi = generateRandomFloat(gen);
   pluv = generateRandomFloat(gen);
   bat = generateRandomFloat(gen);
-  
-  String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaBat = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat, 2) + ",\"unx\":" + String(time(&now)) + "}";
+
+  String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
+  String medidaBat = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
   
   medidas.push_back(medidaTemp + ",");
   medidas.push_back(medidaUmi + ",");
@@ -146,7 +146,7 @@ void setup() {
 
 
 void loop() {
-  if((time(&now) % 900) == 0){
+  if((time(&now) % 60) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
       Serial.println(time(&now));
   
