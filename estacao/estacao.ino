@@ -146,7 +146,7 @@ void setup() {
 
 
 void loop() {
-  if((time(&now) % 60) == 0){
+  if((time(&now) % 900) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
       Serial.println(time(&now));
   
