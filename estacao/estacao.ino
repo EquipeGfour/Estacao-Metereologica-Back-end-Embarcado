@@ -3,6 +3,7 @@
 #include <vector>
 #include <numeric>
 #include "time.h";
+#include <random>
 
 
 // WiFi config
@@ -10,7 +11,7 @@ const char* ssid = "Fatec WiFi";
 const char* pwd = "";
 
 // Server config
-const char* server = "http://192.168.15.37:5001/";
+const char* server = ""; //ADICIONE AQUI A URL DO BACK-END
 const char* app_key = "estacao";
 
 // NTP config
@@ -27,15 +28,19 @@ int httpReturn;
 time_t now;
 struct tm timeinfo;
 
-float temp = 20.0;
-float umi = 50.0;
-float pluv = 10.0;
+float temp;
+float umi;
+float pluv;
+float bat;
 
 TaskHandle_t tTask1;
 TaskHandle_t tTask2;
 SemaphoreHandle_t mutex;
 
 std::vector<String> medidas;
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_real_distribution<float> generateRandomFloat(0.0f, 100.0f);
 
 String data;
 
@@ -70,15 +75,20 @@ void cadastrarDados() {
   hpost.addHeader("Content-Type", "application/json");
   hpost.addHeader("x-app-key", "kkk");
 
+  temp = generateRandomFloat(gen);
+  umi = generateRandomFloat(gen);
+  pluv = generateRandomFloat(gen);
+  bat = generateRandomFloat(gen);
   
   String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp, 2) + ",\"unx\":" + String(time(&now)) + "}";
   String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi, 2) + ",\"unx\":" + String(time(&now)) + "}";
   String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  
+  String medidaBat = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat, 2) + ",\"unx\":" + String(time(&now)) + "}";
   
   medidas.push_back(medidaTemp + ",");
   medidas.push_back(medidaUmi + ",");
   medidas.push_back(medidaPluv + ",");
+  medidas.push_back(medidaBat + ",");
   
   String str_medidas = std::accumulate(medidas.begin(), medidas.end(), String("["));
   str_medidas.remove(str_medidas.length() - 1, 1);
@@ -108,6 +118,7 @@ void setup() {
   }
 
 
+/*
   xTaskCreatePinnedToCore(
     coletarDados, //function name
     "coletarDados", //task name
@@ -116,7 +127,7 @@ void setup() {
     1, // task priority
     &tTask1, // task handle
     0); //task core - loop run on core 1
-
+*/
 
   WiFi.begin(ssid, pwd);
   uid = WiFi.macAddress();
@@ -135,7 +146,7 @@ void setup() {
 
 
 void loop() {
-  if((time(&now) % 300) == 0){
+  if((time(&now) % 60) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
       Serial.println(time(&now));
   
