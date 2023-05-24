@@ -1,3 +1,4 @@
+#include "DHT.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <vector>
@@ -5,6 +6,10 @@
 #include "time.h";
 #include <random>
 
+#define DHTPIN 2
+#define DHTTYPE DHT22
+
+DHT dht(DHTPIN, DHTTYPE);
 
 // WiFi config
 const char* ssid = "Fatec WiFi"; //ADICIONE NO LUGAR DE "Fatec WiFi" A SUA REDE
@@ -21,11 +26,10 @@ const int daylight = 0;
 
 String uid;
 
-HTTPClient hget;
 HTTPClient hpost;
-int httpReturn;
 
-time_t now;
+time_t datetime;
+time_t adjustedTime;
 struct tm timeinfo;
 
 float temp;
@@ -34,15 +38,11 @@ float pluv;
 float bat;
 
 TaskHandle_t tTask1;
-TaskHandle_t tTask2;
 SemaphoreHandle_t mutex;
 
-std::vector<String> medidas;
 std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_real_distribution<float> generateRandomFloat(0.0f, 100.0f);
-
-String data;
 
 void connectWiFi(){
   Serial.print("\nConectando");
@@ -53,6 +53,69 @@ void connectWiFi(){
   Serial.print("\nConectado ao WiFi com o IP: ");
   Serial.println(WiFi.localIP());
 }
+
+
+void sendParameterFromEspToMongo(String parameter){
+   String url = String(server) + "cadastrar";
+   WiFiClient wClient;
+   hpost.begin(wClient, url);
+   hpost.addHeader("Content-Type", "application/json");
+   hpost.addHeader("x-app-key", "kkk");
+   int httpReturn = hpost.POST(parameter);
+   String dados = hpost.getString();
+   Serial.println(url);
+   //Serial.print(parameter);
+   PrintResponseContent(dados, httpReturn);
+   hpost.end();
+}
+
+void PrintResponseContent(String response,int httpStatus ){
+  if (httpStatus > 0) {
+    Serial.printf("Status: %d\n", httpStatus);
+    Serial.printf("Response: %s\n", response.c_str());
+  } else {
+    Serial.println("Ocorreu um ERRO ao realizar um POST!");
+  }
+}
+
+
+void sendTemperature(){
+   temp = dht.readTemperature();
+   Serial.println(dht.readTemperature());
+   if (isnan(temp)) {
+    Serial.println("Erro ao coletar temperatura...");
+    return;
+   }
+   String medida = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   sendParameterFromEspToMongo(medida);
+}
+
+
+void sendHumidity(){
+   umi = dht.readHumidity();
+   if (isnan(temp)) {
+    Serial.println("Erro ao coletar humidade...");
+    return;
+   }
+   String medida = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   sendParameterFromEspToMongo(medida);
+}
+
+
+void sendBatery(){
+   bat = generateRandomFloat(gen);
+   String medida = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   sendParameterFromEspToMongo(medida);
+}
+
+
+void sendPluviometro(){
+   pluv = generateRandomFloat(gen);
+   String medida = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   sendParameterFromEspToMongo(medida);
+}
+
+
 
 void coletarDados(void *pvParameters){
   Serial.println("Iniciando coleta de dados...");
@@ -66,52 +129,10 @@ void coletarDados(void *pvParameters){
   }
 }
 
-void cadastrarDados() {
-  Serial.println("\n\n### POST ###");
-  String url = String(server) + "cadastrar-multiplos";
-  WiFiClient wClient;
-
-  hpost.begin(wClient, url);
-  hpost.addHeader("Content-Type", "application/json");
-  hpost.addHeader("x-app-key", "kkk");
-
-  temp = generateRandomFloat(gen);
-  umi = generateRandomFloat(gen);
-  pluv = generateRandomFloat(gen);
-  bat = generateRandomFloat(gen);
-
-  String medidaTemp = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaUmi = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaPluv = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  String medidaBat = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat*100, 2) + ",\"unx\":" + String(time(&now)) + "}";
-  
-  medidas.push_back(medidaTemp + ",");
-  medidas.push_back(medidaUmi + ",");
-  medidas.push_back(medidaPluv + ",");
-  medidas.push_back(medidaBat + ",");
-  
-  String str_medidas = std::accumulate(medidas.begin(), medidas.end(), String("["));
-  str_medidas.remove(str_medidas.length() - 1, 1);
-  str_medidas += "]";
-  
-  httpReturn = hpost.POST(str_medidas.c_str());
-  medidas.clear();
-  String dados = hpost.getString();
- 
-  if (httpReturn > 0) {
-    Serial.println(url);
-    Serial.printf("Status: %d\n", httpReturn);
-    Serial.printf("Response: %s\n", dados.c_str());
-  } else {
-    Serial.println("Ocorreu um ERRO ao realizar um POST!");
-  }
-
-  hpost.end();
-}
-
 void setup() {
-
+  
   Serial.begin(115200);
+  dht.begin();
   mutex = xSemaphoreCreateMutex();
   if(mutex == NULL){
     Serial.println("deu ruim no mutex");
@@ -135,29 +156,35 @@ void setup() {
   Serial.print("Uid: ");
   Serial.print(uid);
   connectWiFi();
+  
   configTime(gmtOffset, daylight, ntpServer);
   if(!getLocalTime(&timeinfo)){
      Serial.println("Erro ao acessar o NTP server");
   }else{
-    Serial.print("A hora agora eh ");
-    Serial.println(time(&now));
+    Serial.print("Horario: ");
+    datetime = time(&datetime);
+    adjustedTime = datetime - 3 * 3600;
+    Serial.println(ctime(&adjustedTime));
   }
 }
 
 
 void loop() {
-  if((time(&now) % 900) == 0){
+  if((time(&datetime) % 10) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
-      Serial.println(time(&now));
-  
+      Serial.print("Horario: ");
+      adjustedTime = datetime - 3 * 3600;
+      Serial.println(ctime(&adjustedTime));
+
     if(WiFi.status() == WL_CONNECTED){
-      cadastrarDados();
-      
+      sendTemperature();
+      sendHumidity();
+      sendBatery();
+      sendPluviometro();
     } else {
       Serial.println("Ocorreu algum erro ao se conectar a rede : (");
       connectWiFi();
     }
-
     delay(30000);
   }
 }
