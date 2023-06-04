@@ -1,15 +1,9 @@
-#include "DHT.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <vector>
 #include <numeric>
 #include "time.h";
 #include <random>
-
-#define DHTPIN 2
-#define DHTTYPE DHT22
-
-DHT dht(DHTPIN, DHTTYPE);
 
 // WiFi config
 const char* ssid = "Fatec WiFi"; //ADICIONE NO LUGAR DE "Fatec WiFi" A SUA REDE
@@ -32,17 +26,15 @@ time_t datetime;
 time_t adjustedTime;
 struct tm timeinfo;
 
-float temp;
-float umi;
-float pluv;
-float bat;
+float temp = 0.0;
+float umi = 0.0;
+float wspeed = 0.0;
+float wdirection = 0.0;
+uint32_t pluv = 0;
+float bat = 0.0;
 
-TaskHandle_t tTask1;
+TaskHandle_t tSimulacao;
 SemaphoreHandle_t mutex;
-
-std::random_device rd;
-std::mt19937 gen(rd());
-std::uniform_real_distribution<float> generateRandomFloat(0.0f, 100.0f);
 
 void connectWiFi(){
   Serial.print("\nConectando");
@@ -52,6 +44,22 @@ void connectWiFi(){
   }
   Serial.print("\nConectado ao WiFi com o IP: ");
   Serial.println(WiFi.localIP());
+}
+
+
+void simulacao(void *pvParameters){
+  Serial.println("Iniciando a Taks1");
+  while (true){
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    temp = random(22, 27) + (random(100) / 100.0);
+    umi = random(65, 98) + (random(100) / 100.0);
+    wspeed = random(4, 15) + (random(100) / 100.0);
+    wdirection = random(1, 360) + (random(100) / 100.0);
+    bat = analogRead(34) * 3.3 / 4095;
+    pluv = pluv + random(12);
+    xSemaphoreGive(mutex);
+    delay(60000);
+  }
 }
 
 
@@ -80,75 +88,55 @@ void PrintResponseContent(String response,int httpStatus ){
 
 
 void sendTemperature(){
-   temp = dht.readTemperature();
-   Serial.println(dht.readTemperature());
-   if (isnan(temp)) {
-    Serial.println("Erro ao coletar temperatura...");
-    return;
-   }
-   String medida = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   String medida = "{\"uid\":\"" + uid + "\",\"temp\":" + String(temp) + ",\"unx\":" + String(time(&datetime)) + "}";
    sendParameterFromEspToMongo(medida);
 }
 
 
 void sendHumidity(){
-   umi = dht.readHumidity();
-   if (isnan(temp)) {
-    Serial.println("Erro ao coletar humidade...");
-    return;
-   }
-   String medida = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   String medida = "{\"uid\":\"" + uid + "\",\"umi\":" + String(umi) + ",\"unx\":" + String(time(&datetime)) + "}";
    sendParameterFromEspToMongo(medida);
 }
 
 
 void sendBatery(){
-   bat = generateRandomFloat(gen);
-   String medida = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   String medida = "{\"uid\":\"" + uid + "\",\"bat\":" + String(bat) + ",\"unx\":" + String(time(&datetime)) + "}";
    sendParameterFromEspToMongo(medida);
 }
 
 
 void sendPluviometro(){
-   pluv = generateRandomFloat(gen);
-   String medida = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv*100, 2) + ",\"unx\":" + String(time(&datetime)) + "}";
+   String medida = "{\"uid\":\"" + uid + "\",\"pluv\":" + String(pluv) + ",\"unx\":" + String(time(&datetime)) + "}";
    sendParameterFromEspToMongo(medida);
 }
 
+void sendWspeed(){
+   String medida = "{\"uid\":\"" + uid + "\",\"wspeed\":" + String(wspeed) + ",\"unx\":" + String(time(&datetime)) + "}";
+   sendParameterFromEspToMongo(medida);
+}
 
-
-void coletarDados(void *pvParameters){
-  Serial.println("Iniciando coleta de dados...");
-  while(true){
-    xSemaphoreTake(mutex, portMAX_DELAY);
-    temp += 0.9;
-    umi += 0.11;
-    pluv+= 0.3;
-    xSemaphoreGive(mutex);
-    delay(10000);
-  }
+void sendWdirection(){
+   String medida = "{\"uid\":\"" + uid + "\",\"wdirection\":" + String(wdirection) + ",\"unx\":" + String(time(&datetime)) + "}";
+   sendParameterFromEspToMongo(medida);
 }
 
 void setup() {
-  
   Serial.begin(115200);
-  dht.begin();
+  randomSeed(analogRead(0));
+  pinMode(34, INPUT);
   mutex = xSemaphoreCreateMutex();
   if(mutex == NULL){
     Serial.println("deu ruim no mutex");
   }
 
-
-/*
   xTaskCreatePinnedToCore(
-    coletarDados, //function name
-    "coletarDados", //task name
-    10000, // task stack size
-    NULL, // task parameters
-    1, // task priority
-    &tTask1, // task handle
+    simulacao, //function name
+    "Simulacao", // task name
+    10000, //task stack size
+    NULL, //task parameters
+    1, //task priority
+    &tSimulacao, //task handle
     0); //task core - loop run on core 1
-*/
 
   WiFi.begin(ssid, pwd);
   uid = WiFi.macAddress();
@@ -170,7 +158,7 @@ void setup() {
 
 
 void loop() {
-  if((time(&datetime) % 10) == 0){
+  if((time(&datetime) % 600) == 0){
       Serial.println("\n\n##### TRANSMITINDO DADOS #####");
       Serial.print("Horario: ");
       adjustedTime = datetime - 3 * 3600;
@@ -181,6 +169,8 @@ void loop() {
       sendHumidity();
       sendBatery();
       sendPluviometro();
+      sendWspeed();
+      sendWdirection();
     } else {
       Serial.println("Ocorreu algum erro ao se conectar a rede : (");
       connectWiFi();
